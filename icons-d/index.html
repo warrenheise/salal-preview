@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SALAL">
+<meta name="theme-color" content="#1f584d">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="robots" content="noindex">
+<title>SALAL</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #16301f; overflow: hidden; overscroll-behavior: none; font: 16px system-ui, sans-serif; color: #e8efe2; }
+  #frame { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  /* phones: fill the screen; wide windows: a portrait strip in the middle (1206 x 2622) */
+  #unity-canvas { display: block; width: 100%; height: 100%; max-width: calc(100vh * 1206 / 2622); max-width: calc(100dvh * 1206 / 2622); background: #16301f; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; outline: none; }
+  @media (max-width: 600px) { #unity-canvas { max-width: none; } }
+  #loading { position: fixed; left: 0; right: 0; bottom: 18vh; text-align: center; pointer-events: none; }
+  #bar { width: 180px; height: 6px; margin: 10px auto; border-radius: 3px; background: #ffffff33; overflow: hidden; }
+  #fill { width: 0; height: 100%; background: #e8efe2; }
+  #note { padding: 0 24px; white-space: pre-wrap; }
+  /* home-screen app only: Safari has its own refresh */
+  #again { display: none; position: fixed; right: 14px; bottom: calc(22px + env(safe-area-inset-bottom)); width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: #16301f66; color: #e8efe2; font-size: 24px; line-height: 44px; opacity: .65; }
+  #version { position: fixed; left: 8px; bottom: calc(4px + env(safe-area-inset-bottom)); font-size: 10px; opacity: .55; pointer-events: none; }
+  /* test tab: closed it is one small pill on the bottom edge, clear of the footer and the menus; it opens upward and closes itself */
+  #lab { display: none; position: fixed; right: 66px; bottom: calc(6px + env(safe-area-inset-bottom)); flex-direction: column; gap: 6px; align-items: flex-end; }
+  #lab > div { display: none; flex-direction: column; gap: 6px; }
+  #lab.open > div { display: flex; }
+  #lab #labtab { padding: 4px 10px; font-size: 11px; opacity: .7; }
+  #lab button { border: 0; border-radius: 16px; padding: 8px 12px; background: #16301faa; color: #e8efe2; font: 13px system-ui, sans-serif; }
+</style>
+</head>
+<body>
+<div id="frame"><canvas id="unity-canvas" tabindex="-1"></canvas></div>
+<div id="loading"><div id="note">Loading</div><div id="bar"><div id="fill"></div></div></div>
+<div id="lab"><div><button data-m="LabAnimals">Animals</button><button data-m="LabItems">Items</button><button data-m="LabLight">Light</button></div><button id="labtab">Test</button></div>
+<div id="version">2026-11-27 23:14 34c7e6b</div>
+<button id="again" aria-label="Refresh">&#8635;</button>
+<script src="Build/WebGL_moebius.loader.js?v=20261127231445-34c7e6b"></script>
+<script>
+  var canvas = document.getElementById("unity-canvas"), note = document.getElementById("note");
+  var config = {
+    arguments: [],
+    dataUrl: "Build/WebGL_moebius.data.unityweb?v=20261127231445-34c7e6b",
+    frameworkUrl: "Build/WebGL_moebius.framework.js.unityweb?v=20261127231445-34c7e6b",
+    codeUrl: "Build/WebGL_moebius.wasm.unityweb?v=20261127231445-34c7e6b",
+    streamingAssetsUrl: "StreamingAssets",
+    companyName: "DefaultCompany",
+    productName: "SALAL",
+    productVersion: "1.0",
+    autoSyncPersistentDataPath: true, // saves reach the browser's storage
+    devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+    showBanner: function (msg, type) { if (type === "error") note.textContent = msg; }
+  };
+  createUnityInstance(canvas, config, function (p) { document.getElementById("fill").style.width = Math.round(p * 100) + "%"; })
+    .then(function (game) {
+      window.salalGame = game; // for the UI screenshot checks (UiShot)
+      document.getElementById("loading").style.display = "none";
+      if (location.search.indexOf("game") >= 0) return; // the real game, without the test buttons
+      var lab = document.getElementById("lab"); lab.style.display = "flex";
+      var closing;
+      lab.onclick = function (e) {
+        var m = e.target.getAttribute("data-m");
+        if (m) game.SendMessage("GameManager", m); else lab.classList.toggle("open");
+        clearTimeout(closing); closing = setTimeout(function () { lab.classList.remove("open"); }, 6000);
+      };
+    })
+    .catch(function (e) { note.textContent = "Could not start: " + e; });
+  document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+  // Refresh: the home-screen app has no refresh button, so it gets one here, a three-finger tap does the same, and every start
+  // looks for a newer build by itself (version.txt is never cached).
+  var build = "20261127231445-34c7e6b", again = document.getElementById("again");
+  function refresh() {
+    again.disabled = true; again.style.opacity = 1; again.textContent = "\u2026";
+    fetch(location.href, { cache: "reload" }).catch(function () {}).then(function () { location.reload(); });
+  }
+  if (navigator.standalone || matchMedia("(display-mode: standalone)").matches) again.style.display = "block";
+  again.onclick = refresh;
+  var three = 0;
+  document.addEventListener("touchstart", function (e) { if (e.touches.length === 3) three = Date.now(); else if (e.touches.length > 3) three = 0; }, { passive: true, capture: true });
+  document.addEventListener("touchend", function (e) { if (three && e.touches.length === 0) { var quick = Date.now() - three < 600; three = 0; if (quick) refresh(); } }, { passive: true, capture: true });
+  function look() {
+    fetch("version.txt", { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : build; }).then(function (v) {
+      v = v.trim(); if (!v || v === build) return;
+      try { if (sessionStorage.getItem("tried") === v) return; sessionStorage.setItem("tried", v); } catch (e) { return; } // once per new build, never a loop
+      refresh();
+    }).catch(function () {});
+  }
+  look();
+</script>
+</body>
+</html>
